@@ -7,41 +7,39 @@ from random import randint
 
 import async_timeout
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .api import VirginApi
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+class VirginCoordinator(DataUpdateCoordinator[dict]):
+    """Coordinator that polls the Virgin modem JSON endpoint."""
 
-class VirginModemCoordinator(DataUpdateCoordinator[dict]):
-    """Coordinator to poll Virgin modem status JSON."""
-
-    def __init__(self, hass: HomeAssistant, host: str, scan_seconds: int = 30) -> None:
+    def __init__(self, hass: HomeAssistant, api: VirginApi, scan_interval: int):
+        self.api = api
         super().__init__(
             hass,
             _LOGGER,
-            name="Virgin Modem Status",
-            update_interval=timedelta(seconds=scan_seconds),
+            name=f"{DOMAIN} coordinator",
+            update_interval=timedelta(seconds=scan_interval),
         )
-        self._hass = hass
-        self._host = host
-        # The page appears to accept cache-buster params like _n / _
-        self._base_url = f"http://{host}/getRouterStatus"
-        self._session = async_get_clientsession(hass)
 
     async def _async_update_data(self) -> dict:
-        """Fetch and return the modem JSON."""
-        # add simple cache busters so the modem doesn’t return a cached page
-        params = {"_n": f"{randint(10000, 99999)}", "_": f"{randint(10**12, 10**13-1)}"}
+        """Fetch latest data from the modem."""
         try:
+            # Small jitter so we don't hammer the endpoint at the exact same second
+            jitter = randint(0, 2)
+            if jitter:
+                await self.hass.async_add_executor_job(lambda: None)  # yield once
+
             async with async_timeout.timeout(10):
-                resp = await self._session.get(self._base_url, params=params)
-                if resp.status != 200:
-                    raise UpdateFailed(f"HTTP {resp.status}")
-                # Some modems send text/html; ignore content-type
-                data = await resp.json(content_type=None)
-                if not isinstance(data, dict):
-                    raise UpdateFailed("Unexpected payload (not a JSON object)")
-                return data
+                data = await self.api.async_get_status()
         except Exception as err:
-            raise UpdateFailed(err) from err
+            raise UpdateFailed(f"Virgin modem fetch failed: {err}") from err
+
+        if not isinstance(data, dict) or not data:
+            raise UpdateFailed("Virgin modem returned empty/invalid payload")
+
+        return data
