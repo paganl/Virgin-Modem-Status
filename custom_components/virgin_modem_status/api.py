@@ -11,13 +11,19 @@ from .const import DEFAULT_HOST, ROUTER_STATUS_PATH
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_TIMEOUT = 10  # seconds
 
+# OID column prefixes used by many DOCSIS firmwares
+OID_TIME = "1.3.6.1.2.1.69.1.5.8.1.2."   # docsDevEvTime
+OID_PRI  = "1.3.6.1.2.1.69.1.5.8.1.5."   # docsDevEvLevel / priority
+OID_MSG  = "1.3.6.1.2.1.69.1.5.8.1.7."   # docsDevEvText
+
 class VirginApiError(Exception):
     """Raised when the Virgin modem status fetch or parse fails."""
+
 
 class VirginApi:
     """
     HTTP-backed API for Virgin modem status.
-    Tries JSON first; falls back to HTML parsing (no external deps).
+    Tries JSON (including flat OID maps) first; falls back to HTML parsing (no extra deps).
     """
 
     def __init__(self, host: str, session: ClientSession, timeout: int = _DEFAULT_TIMEOUT) -> None:
@@ -27,99 +33,134 @@ class VirginApi:
         self._timeout = ClientTimeout(total=timeout)
 
     async def fetch_snapshot(self) -> Dict[str, Any]:
+        """Fetch modem status and return a flat OID-like dict of the last ~20 events."""
         url = f"{self._base}{ROUTER_STATUS_PATH}"
-        raw = None
         try:
             async with self._session.get(url, timeout=self._timeout) as resp:
                 resp.raise_for_status()
-                # Don’t assume JSON; always read text first.
                 raw = await resp.text()
         except (ClientError, Exception) as exc:
             raise VirginApiError(f"Router status fetch failed: {exc}") from exc
 
+        # Prefer JSON path; cover both array/list layouts and flat OID->value dicts
         events: List[Dict[str, Any]] = []
+        txt = (raw or "").lstrip()
+        if txt.startswith("{") or txt.startswith("["):
+            try:
+                data = json.loads(txt)
+                events = self._extract_events_from_json(data)
+                if events:
+                    _LOGGER.debug("VirginApi: parsed %d JSON events from %s", len(events), url)
+                    return self._events_to_flat_map(events)
+            except Exception as exc:
+                _LOGGER.debug("VirginApi: JSON parse failed (%s), will try HTML.", exc)
 
-        # 1) JSON (various shapes we’ve seen)
-        try:
-            data = json.loads(raw)
-            events = self._extract_events_from_json(data)
-            if events:
-                _LOGGER.debug("VirginApi: parsed %d JSON events from %s", len(events), url)
-        except Exception:
-            pass
-
-        # 2) HTML fallback
+        # HTML fallback (only warn about login on the HTML path)
+        events = self._extract_events_from_html(raw)
+        _LOGGER.debug(
+            "VirginApi: parsed %d HTML events from %s (first bytes: %r)",
+            len(events), url, raw[:120] if raw else ""
+        )
         if not events:
-            events = self._extract_events_from_html(raw)
-            _LOGGER.debug(
-                "VirginApi: parsed %d HTML events from %s (first bytes: %r)",
-                len(events), url, raw[:120]
-            )
-
-        if not events:
-            # Not fatal to the integration; coordinator will try again next interval.
             _LOGGER.warning("VirginApi: no events parsed from %s", url)
+            return {}
 
-        # Map to flat OID-like dict that the coordinator expects (last 20 only)
-        flat: Dict[str, Any] = {}
-        events = events[-20:]
-        for i, ev in enumerate(events, start=1):
-            t = (ev.get("time") or ev.get("timestamp") or "").strip()
-            m = (ev.get("message") or ev.get("text") or "").strip()
-            p = (ev.get("priority") or ev.get("pri") or "").strip().lower()
-            flat[f"1.3.6.1.2.1.69.1.5.8.1.2.{i}"] = t
-            flat[f"1.3.6.1.2.1.69.1.5.8.1.7.{i}"] = m
-            if p:
-                flat[f"1.3.6.1.2.1.69.1.5.8.1.3.{i}"] = p
-
-        return flat
+        return self._events_to_flat_map(events)
 
     # ---------- helpers ----------
 
+    def _events_to_flat_map(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Convert normalised event rows to the flat OID-like structure the coordinator expects."""
+        flat: Dict[str, Any] = {}
+        # keep the last 20 (or fewer) rows
+        tail = events[-20:]
+        for i, ev in enumerate(tail, start=1):
+            t = (ev.get("time") or "").strip()
+            m = (ev.get("message") or "").strip()
+            p = (ev.get("priority") or "").strip()
+            flat[f"{OID_TIME}{i}"] = t
+            flat[f"{OID_MSG}{i}"]  = m
+            if p:
+                flat[f"{OID_PRI}{i}"] = p
+        return flat
+
     def _extract_events_from_json(self, data: Any) -> List[Dict[str, Any]]:
-        """Handle common JSON layouts across firmware variants."""
+        """
+        Handle common JSON layouts:
+        - flat dict of OIDs (your modem does this)
+        - array/list of event dicts
+        - nested under keys like 'events', 'docsisLog', etc.
+        """
+        # 1) Flat OID map?
+        if isinstance(data, dict):
+            evs = self._extract_events_from_oid_dict(data)
+            if evs:
+                return evs
+
+        # 2) Direct list of dicts
         if isinstance(data, list):
             return [self._norm_ev(x) for x in data if isinstance(x, dict)]
 
-        if not isinstance(data, dict):
-            return []
-
-        # Common keys across vendors
-        for key in ("events", "EventLog", "docsis_events", "docsisLog", "log"):
-            val = data.get(key)
-            if isinstance(val, list):
-                return [self._norm_ev(x) for x in val if isinstance(x, dict)]
-
-        # Nested objects
-        for parent in ("data", "status", "result"):
-            sub = data.get(parent)
-            if isinstance(sub, (dict, list)):
-                evs = self._extract_events_from_json(sub)
-                if evs:
-                    return evs
-
+        # 3) Nested objects
+        if isinstance(data, dict):
+            for key in ("events", "EventLog", "docsis_events", "docsisLog", "log"):
+                val = data.get(key)
+                if isinstance(val, list):
+                    return [self._norm_ev(x) for x in val if isinstance(x, dict)]
+            for parent in ("data", "status", "result"):
+                sub = data.get(parent)
+                if isinstance(sub, (dict, list)):
+                    evs = self._extract_events_from_json(sub)
+                    if evs:
+                        return evs
         return []
+
+    def _extract_events_from_oid_dict(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Build event rows from a flat OID map, e.g.:
+          1.3.6.1.2.1.69.1.5.8.1.2.<i> -> time
+          1.3.6.1.2.1.69.1.5.8.1.7.<i> -> message
+          1.3.6.1.2.1.69.1.5.8.1.5.<i> -> priority (optional)
+        """
+        idxs: set[int] = set()
+        for k in data.keys():
+            if k.startswith(OID_TIME) or k.startswith(OID_MSG) or k.startswith(OID_PRI):
+                try:
+                    idxs.add(int(k.split(".")[-1]))
+                except Exception:
+                    pass
+
+        events: List[Dict[str, Any]] = []
+        for i in sorted(idxs):
+            t = str(data.get(f"{OID_TIME}{i}", "")).strip()
+            m = str(data.get(f"{OID_MSG}{i}", "")).strip()
+            p = str(data.get(f"{OID_PRI}{i}", "")).strip()
+            if not (t or m):
+                continue
+            events.append({"time": t, "message": m, "priority": p})
+        return events
 
     def _extract_events_from_html(self, html: str) -> List[Dict[str, Any]]:
         """
         Heuristic HTML parser:
         - Look for <tr> with 2–5 <td> cells.
-        - Assume first cell = time, last cell = message, middle maybe priority.
-        - Works on most Virgin “status/log” pages that render a simple table.
+        - Assume first cell = time, last cell = message, middle = priority where present.
         """
+        if not html:
+            return []
+
         # Normalise whitespace to make regex saner
         text = re.sub(r"\s+", " ", html)
 
-        # Quick bail-outs: login page or zero logs
+        # Bail-out if it looks like a login page
         if re.search(r"(login|sign in)", text, re.I) and "password" in text.lower():
             _LOGGER.warning("VirginApi: page looks like a login form; cannot parse logs.")
             return []
 
-        # Pull rows
         rows = re.findall(r"<tr[^>]*>(.*?)</tr>", text, flags=re.I)
         events: List[Dict[str, Any]] = []
 
-        # Define a time detector (several common formats)
+        # Time detector (several common formats)
         time_pat = re.compile(
             r"(?:(\d{4}-\d{2}-\d{2})|(\d{1,2}/\d{1,2}/\d{2,4}))\s+(\d{1,2}:\d{2}:\d{2})"
         )
@@ -136,13 +177,13 @@ class VirginApi:
             raw_last  = strip_tags(cells[-1])
             raw_mid   = strip_tags(cells[1]) if len(cells) >= 3 else ""
 
-            # Heuristic: first cell should look like a time (else skip)
+            # Some firmwares put time in 2nd cell
+            if not time_pat.search(raw_first) and time_pat.search(raw_mid):
+                raw_first, raw_mid = raw_mid, raw_first
+
+            # Must have a time-ish first cell
             if not time_pat.search(raw_first):
-                # Some firmwares put time in 2nd cell; swap if that matches
-                if time_pat.search(raw_mid):
-                    raw_first, raw_mid = raw_mid, raw_first
-                else:
-                    continue
+                continue
 
             ev = {
                 "time": raw_first,
@@ -150,7 +191,7 @@ class VirginApi:
                 "message": raw_last,
             }
 
-            # Ignore header rows and empties
+            # Ignore headers / empties
             if not ev["message"] or ev["message"].lower() in ("message", "event", "description"):
                 continue
 
