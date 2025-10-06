@@ -1,23 +1,17 @@
 {
   "config": {
     "error": {
-      "cannot_connect": "Cannot connect to modem"
+      "invalid_host": "Please enter a valid host.",
+      "cannot_connect": "Could not connect to the modem.",
+      "connection_timeout": "Timed out while contacting the modem.",
+      "unknown": "Unexpected error."
     },
     "step": {
       "user": {
-        "title": "Virgin Modem",
-        "description": "Enter the modem IP (default 192.168.100.1).",
+        "title": "Virgin Modem Status",
+        "description": "Enter the modem IP/host.",
         "data": {
           "host": "Host"
-        }
-      }
-    },
-    "options": {
-      "step": {
-        "init": {
-          "data": {
-            "scan_interval": "Scan interval (seconds)"
-          }
         }
       }
     }
