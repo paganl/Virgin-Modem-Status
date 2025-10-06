@@ -1,24 +1,17 @@
 {
   "domain": "virgin_modem_status",
   "name": "Virgin Modem Status",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "documentation": "https://github.com/paganl/virgin-modem-status",
   "issue_tracker": "https://github.com/paganl/virgin-modem-status/issues",
-  "requirements": ["pysnmp==4.4.12"],
-  "codeowners": ["@paganl"],
-  "iot_class": "local_polling",
-  "integration_type": "hub",
   "config_flow": true,
-  "loggers": ["custom_components.virgin_modem_status"]
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "codeowners": ["@paganl"],
+  "loggers": ["custom_components.virgin_modem_status"],
+  "requirements": [
+    "pysnmp==4.4.12",
+    "pyasn1==0.4.8",
+    "pyasn1-modules==0.2.8"
+  ]
 }
-
-
-
-
-
-
-
-
-
-
-
