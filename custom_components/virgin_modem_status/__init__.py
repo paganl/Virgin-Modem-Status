@@ -19,7 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     host = entry.data.get("host", DEFAULT_HOST)
     scan_interval = entry.options.get("scan_interval", DEFAULT_SCAN_INTERVAL) if entry.options else DEFAULT_SCAN_INTERVAL
 
-    api = VirginApi(host)
+    api = VirginApi(host, session)
     coordinator = VirginCoordinator(hass, api, scan_interval)
 
     # First poll (important)
@@ -42,4 +42,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
+
 
