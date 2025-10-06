@@ -1,3 +1,7 @@
+<p align="center">
+  <img alt="Virgin Modem Status" src="images/logo.svg" width="420">
+</p>
+
 Virgin Modem Status (Home Assistant)
 
 Unofficial custom integration for Home Assistant that polls a Virgin Media modem at http://192.168.100.1/getRouterStatus and exposes simple entities you can use in dashboards and automations (e.g., WAN auto-heal/escalation).
