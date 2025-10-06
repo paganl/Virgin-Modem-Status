@@ -1,7 +1,7 @@
 {
   "domain": "virgin_modem_status",
   "name": "Virgin Modem Status",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "documentation": "https://github.com/paganl/virgin-modem-status",
   "issue_tracker": "https://github.com/paganl/virgin-modem-status/issues",
   "config_flow": true,
@@ -12,6 +12,7 @@
   "requirements": []
 
 }
+
 
 
 
