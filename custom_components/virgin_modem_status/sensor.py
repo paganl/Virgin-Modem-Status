@@ -29,6 +29,15 @@ class VirginLastEventSensor(VirginEntity, SensorEntity):
     def extra_state_attributes(self):
         data = self.coordinator.data or {}
         return {
-            "times": {oid: data.get(oid) for oid in EVENT_TIME_OIDS if data.get(oid)},
-            "messages": {oid: data.get(oid) for oid in EVENT_MSG_OIDS if data.get(oid)},
+            "index": d.get("last_event_index"),
+            "time_raw": d.get("last_event_time_raw"),
+            "time_iso": d.get("last_event_time_iso"),
+            "priority": d.get("last_event_priority"),
+            "trouble": d.get("docsis_trouble"),
+            "last_error_index": d.get("last_error_index"),
+            "last_error_msg": d.get("last_error_msg"),
+            "last_error_time_iso": d.get("last_error_time_iso"),
+            "last_error_priority": d.get("last_error_priority"),
+            "times": {oid: d.get(oid) for oid in EVENT_TIME_OIDS if d.get(oid)},
+            "messages": {oid: d.get(oid) for oid in EVENT_MSG_OIDS if d.get(oid)},
         }
