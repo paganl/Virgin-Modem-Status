@@ -1,4 +1,3 @@
-# custom_components/virgin_modem_status/coordinator.py
 from __future__ import annotations
 import logging
 from datetime import timedelta, datetime, timezone
@@ -30,22 +29,22 @@ class VirginCoordinator(DataUpdateCoordinator[dict]):
         self._last_error_sig: Optional[str] = None
 
     async def _async_update_data(self) -> dict:
-        # 1) Fetch a snapshot from the modem (HTTP or SNMP via api)
+        # 1) Fetch snapshot
         data: Dict[str, Any] = await self.api.fetch_snapshot()
 
-        # 2) Derive latest event (idx/msg/time/priority/trouble)
+        # 2) Derive latest event
         data.update(self._derive_latest_event(data))
 
-        # 3) Derive latest *error* (warning/critical)
+        # 3) Derive latest error (warning/critical)
         data.update(self._derive_latest_error(data))
 
-        # 4) Logbook entries (only on change)
+        # 4) Logbook entries (on change)
         self._maybe_log(EVENT_GENERAL, data, is_error=False)
         self._maybe_log(EVENT_ERROR,   data, is_error=True)
 
         return data
 
-    # ---------- derivation helpers ----------
+    # ---------- derivations ----------
 
     def _derive_latest_event(self, d: Dict[str, Any]) -> Dict[str, Any]:
         time_map = {int(oid.rsplit(".", 1)[-1]): d.get(oid) for oid in EVENT_TIME_OIDS if d.get(oid)}
@@ -113,7 +112,6 @@ class VirginCoordinator(DataUpdateCoordinator[dict]):
 
         payload = {"index": idx, "message": msg, "time": iso, "priority": pri}
         self.hass.bus.async_fire(event_type, payload)
-        # also write to Logbook immediately
         when = self._parse_iso(iso) or datetime.now(timezone.utc)
         ha_logbook.async_log_entry(
             self.hass,
