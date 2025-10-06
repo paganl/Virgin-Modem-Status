@@ -1,4 +1,3 @@
-# custom_components/virgin_modem_status/__init__.py
 from __future__ import annotations
 import logging
 from homeassistant.core import HomeAssistant
@@ -18,21 +17,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     host = entry.data.get("host", DEFAULT_HOST)
-    # allow options to override the scan interval
     scan_interval = entry.options.get("scan_interval", DEFAULT_SCAN_INTERVAL) if entry.options else DEFAULT_SCAN_INTERVAL
 
     api = VirginApi(host, session)
     coordinator = VirginCoordinator(hass, api, scan_interval)
 
-    # KICK OFF FIRST POLL
+    # First poll (important)
     await coordinator.async_config_entry_first_refresh()
 
-    # store for platforms
+    # Store for platforms
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # reload on options change
+    # Reload on options change
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -42,5 +40,5 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
