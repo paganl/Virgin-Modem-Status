@@ -10,10 +10,12 @@ from .entity import VirginEntity
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: VirginCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([VirginLastEventSensor(coord, entry)], True)
+    async_add_entities([VirginLastEventSensor(coord, entry),
+                        VirginLastEventTimeSensor(coord, entry)], False)
 
 class VirginLastEventSensor(VirginEntity, SensorEntity):
     _attr_name = "Last DOCSIS Event"
+    _attr_icon = "mdi:information"
 
     def __init__(self, coordinator: VirginCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry)
@@ -21,13 +23,12 @@ class VirginLastEventSensor(VirginEntity, SensorEntity):
 
     @property
     def native_value(self):
-        data = self.coordinator.data or {}
-        msgs = [data.get(oid) for oid in EVENT_MSG_OIDS if data.get(oid)]
-        return msgs[-1] if msgs else None
+        d = self.coordinator.data or {}
+        return d.get("last_event_msg")
 
     @property
     def extra_state_attributes(self):
-        data = self.coordinator.data or {}
+        d = self.coordinator.data or {}
         return {
             "index": d.get("last_event_index"),
             "time_raw": d.get("last_event_time_raw"),
@@ -41,3 +42,18 @@ class VirginLastEventSensor(VirginEntity, SensorEntity):
             "times": {oid: d.get(oid) for oid in EVENT_TIME_OIDS if d.get(oid)},
             "messages": {oid: d.get(oid) for oid in EVENT_MSG_OIDS if d.get(oid)},
         }
+
+class VirginLastEventTimeSensor(VirginEntity, SensorEntity):
+    _attr_name = "Last DOCSIS Event Time"
+    _attr_device_class = "timestamp"
+    _attr_icon = "mdi:clock-time-eight-outline"
+
+    def __init__(self, coordinator: VirginCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_last_event_time"
+
+    @property
+    def native_value(self):
+        d = self.coordinator.data or {}
+        # device_class=timestamp prefers an ISO string or a datetime; ISO here is fine
+        return d.get("last_event_time_iso")
