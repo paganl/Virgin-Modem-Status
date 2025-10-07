@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 from __future__ import annotations
 import logging
 from homeassistant.core import HomeAssistant
@@ -42,5 +43,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
+
 
 
