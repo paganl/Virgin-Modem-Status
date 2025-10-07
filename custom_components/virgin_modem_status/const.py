@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 # custom_components/virgin_modem_status/const.py
 
 DOMAIN = "virgin_modem_status"
@@ -52,3 +53,4 @@ DEFAULT_PRIORITY = "notice"  # fallback when nothing matches
 # Custom event names for Logbook entries (used by logbook.py and coordinator)
 EVENT_GENERAL = f"{DOMAIN}_event"
 EVENT_ERROR   = f"{DOMAIN}_error"
+
