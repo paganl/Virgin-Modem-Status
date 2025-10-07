@@ -1,3 +1,5 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
+# pylint: disable=unused-argument
 # custom_components/virgin_modem_status/logbook.py
 from __future__ import annotations
 
