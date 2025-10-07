@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 # custom_components/virgin_modem_status/entity.py
 from __future__ import annotations
 
