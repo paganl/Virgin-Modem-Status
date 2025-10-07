@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 from __future__ import annotations
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
