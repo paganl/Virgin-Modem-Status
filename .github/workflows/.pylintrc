@@ -1,0 +1,20 @@
+[MASTER]
+ignore=tests
+extension-pkg-whitelist=
+load-plugins=
+
+[MESSAGES CONTROL]
+disable=
+    # Common for HA custom components; trim later if you want stricter linting
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    trailing-newlines
+
+[FORMAT]
+max-line-length=100
+
+[TYPECHECK]
+# Stop E0401 for HA-only modules in a non-HA env
+ignored-modules=homeassistant,homeassistant.core,homeassistant.components,homeassistant.helpers,homeassistant.config_entries,aiohttp,voluptuous
