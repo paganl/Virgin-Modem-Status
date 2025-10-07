@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 # custom_components/virgin_modem_status/coordinator.py
 from __future__ import annotations
 
@@ -154,3 +155,4 @@ class VirginCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             icon=icon,
         )
         self._last_logged_signature = sig
+
