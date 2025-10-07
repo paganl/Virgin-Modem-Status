@@ -7,11 +7,13 @@
   "config_flow": true,
   "integration_type": "hub",
   "iot_class": "local_polling",
+  "iot_class": "local_polling",
   "codeowners": ["@paganl"],
   "loggers": ["custom_components.virgin_modem_status"],
   "requirements": []
 
 }
+
 
 
 
