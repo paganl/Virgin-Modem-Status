@@ -10,9 +10,12 @@
   "iot_class": "local_polling",
   "codeowners": ["@paganl"],
   "loggers": ["custom_components.virgin_modem_status"],
-  "requirements": []
+  "requirements": [],
+  "icon": "icon.svg",
+  "logo": "logo.svg"
 
 }
+
 
 
 
