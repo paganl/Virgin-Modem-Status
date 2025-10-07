@@ -1,3 +1,4 @@
+"""Virgin Modem Status – Home Assistant custom integration."""
 from __future__ import annotations
 import asyncio
 import voluptuous as vol
